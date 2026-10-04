@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Prisca Ravoarrimanana - YouTube Downloader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --lagon: #0A3A3F;
+      --lagon-clair: #14565C;
+      --sable: #EFE6CC;
+      --safran: #F2B134;
+      --corail: #FF8A6B;
+      --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+      --texte: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; }
+    html, body { min-height: 100%; }
+    body {
+      font-family: var(--texte);
+      background: var(--lagon);
+      color: var(--sable);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    header, main, footer { width: 100%; max-width: 760px; margin: 0 auto; padding-inline: 1.25rem; }
+
+    header { padding-top: 1.75rem; }
+    .marque { font-family: var(--display); font-weight: 800; font-size: clamp(1.4rem, 5vw, 1.9rem); letter-spacing: -0.02em; line-height: 1.05; }
+    .marque span { display: block; font-weight: 500; font-size: 0.8em; color: var(--safran); letter-spacing: 0; }
+
+    main { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-block: 2.5rem; }
+    h1 { font-family: var(--display); font-weight: 800; font-size: clamp(2.2rem, 8vw, 4rem); line-height: 1; letter-spacing: -0.03em; max-width: 14ch; margin-bottom: 1rem; }
+    .intro { max-width: 46ch; line-height: 1.55; opacity: .85; margin-bottom: 2rem; }
+
+    form { display: flex; gap: .75rem; }
+    input {
+      flex: 1; min-width: 0;
+      font: inherit; font-size: 16px; /* 16px empêche le zoom automatique sur iPhone */
+      padding: 1rem 1.1rem; border-radius: 14px;
+      border: 2px solid var(--lagon-clair); background: #072D31; color: var(--sable);
+    }
+    input::placeholder { color: rgba(239,230,204,.5); }
+    input:focus-visible, button:focus-visible { outline: 3px solid var(--corail); outline-offset: 2px; }
+    button {
+      font: inherit; font-weight: 700; cursor: pointer;
+      padding: 1rem 1.5rem; border: 0; border-radius: 14px;
+      background: var(--safran); color: #2A1D00; white-space: nowrap;
+      transition: transform .15s ease, background .15s ease;
+    }
+    button:hover { background: #FFC24F; }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .6; cursor: wait; }
+
+    .statut { min-height: 1.5rem; margin-top: 1rem; font-size: .95rem; }
+    .statut.erreur { color: var(--corail); }
+
+    footer { padding-block: 1.5rem; font-size: .9rem; opacity: .8; border-top: 1px solid var(--lagon-clair); }
+    footer b { font-family: var(--display); color: var(--safran); font-weight: 700; }
+    footer p + p { margin-top: .35rem; font-size: .8rem; opacity: .7; }
+
+    @media (max-width: 560px) {
+      form { flex-direction: column; }
+      button { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="marque">Prisca Ravoarrimanana<span>YouTube Downloader</span></div>
+  </header>
+
+  <main>
+    <h1>Colle un lien, récupère ta vidéo.</h1>
+    <p class="intro">Copie l'adresse d'une vidéo YouTube, colle-la ci-dessous et lance le téléchargement MP4 en un clic. L'emplacement est géré par les réglages de ton navigateur.</p>
+
+    <form id="formulaire" novalidate>
+      <input id="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false"
+             placeholder="https://www.youtube.com/watch?v=…" aria-label="Adresse de la vidéo YouTube" required>
+      <button id="bouton" type="submit">Télécharger en MP4</button>
+    </form>
+
+    <p id="statut" class="statut" role="status" aria-live="polite"></p>
+  </main>
+
+  <footer>
+    <p>Conçu par <b>Prisca Ravoarrimanana</b></p>
+    <p>À utiliser uniquement pour des vidéos dont tu détiens les droits ou dont le téléchargement est autorisé.</p>
+  </footer>
+
+  <script>
+    // Fonctionne depuis le serveur (PC ou iPhone) ou si index.html est ouvert directement
+    const API = location.protocol === 'file:' ? 'http://localhost:3000' : '';
+
+    const form = document.getElementById('formulaire');
+    const input = document.getElementById('url');
+    const statut = document.getElementById('statut');
+
+    function message(texte, erreur = false) {
+      statut.textContent = texte;
+      statut.classList.toggle('erreur', erreur);
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const url = input.value.trim();
+      message('');
+
+      if (!url) return message('Colle d\'abord l\'adresse d\'une vidéo YouTube.', true);
+
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        return message('Adresse invalide. Colle le lien complet d\'une vidéo YouTube.', true);
+      }
+      const host = parsedUrl.hostname.toLowerCase();
+      if (!['http:', 'https:'].includes(parsedUrl.protocol) ||
+          !(host === 'youtube.com' || host.endsWith('.youtube.com') || host === 'youtu.be')) {
+        return message('Colle le lien d\'une vidéo YouTube (youtube.com ou youtu.be).', true);
+      }
+
+      const a = document.createElement('a');
+      a.href = `${API}/api/download?url=${encodeURIComponent(url)}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+  </script>
+</body>
+</html>
